@@ -67,15 +67,17 @@ class Restic:
         repository: str,
         extra_env: dict[str, str] | None = None,
         binary: str = "restic",
+        global_args: list[str] | None = None,
     ):
         self.repository = repository
         self.extra_env = dict(extra_env or {})
         self.binary = binary
+        self.global_args = list(global_args or [])
 
     # -- internals ---------------------------------------------------------
 
     def _base_argv(self) -> list[str]:
-        return [self.binary, "--json", "-r", self.repository]
+        return [self.binary, "--json", "-r", self.repository, *self.global_args]
 
     def _env(self) -> dict[str, str]:
         """Build the subprocess environment.
@@ -113,12 +115,33 @@ class Restic:
     def init(self) -> subprocess.CompletedProcess:
         return self._run(self._base_argv() + ["init"])
 
+    def _backup_flags(
+        self,
+        tags: list[str] | None,
+        host: str | None,
+        skip_if_unchanged: bool,
+        read_concurrency: int | None,
+    ) -> list[str]:
+        argv: list[str] = []
+        for tag in tags or []:
+            argv += ["--tag", tag]
+        if host:
+            argv += ["--host", host]
+        if skip_if_unchanged:
+            argv += ["--skip-if-unchanged"]
+        if read_concurrency:
+            argv += ["--read-concurrency", str(read_concurrency)]
+        return argv
+
     def backup_command(
         self,
         cmd: list[str],
         stdin_filename: str,
         tags: list[str] | None = None,
         extra_env: dict[str, str] | None = None,
+        host: str | None = None,
+        skip_if_unchanged: bool = False,
+        read_concurrency: int | None = None,
     ) -> subprocess.CompletedProcess:
         """Back up the stdout of ``cmd`` as a file named ``stdin_filename``.
 
@@ -130,8 +153,7 @@ class Restic:
         appears in ``argv``.
         """
         argv = self._base_argv() + ["backup", "--stdin-filename", stdin_filename]
-        for tag in tags or []:
-            argv += ["--tag", tag]
+        argv += self._backup_flags(tags, host, skip_if_unchanged, read_concurrency)
         argv += ["--stdin-from-command", "--"] + cmd
         return self._run(argv, extra_env=extra_env)
 
@@ -139,10 +161,15 @@ class Restic:
         self,
         paths: list[str],
         tags: list[str] | None = None,
+        host: str | None = None,
+        skip_if_unchanged: bool = False,
+        read_concurrency: int | None = None,
+        exclude: list[str] | None = None,
     ) -> subprocess.CompletedProcess:
         argv = self._base_argv() + ["backup"] + list(paths)
-        for tag in tags or []:
-            argv += ["--tag", tag]
+        argv += self._backup_flags(tags, host, skip_if_unchanged, read_concurrency)
+        for pattern in exclude or []:
+            argv += ["--exclude", pattern]
         return self._run(argv)
 
     def snapshots(self, tags: list[str] | None = None) -> list[Snapshot]:
@@ -163,6 +190,42 @@ class Restic:
             argv += ["--prune"]
         return self._run(argv)
 
+    # Deterministic --keep-* flag order for forget_policy.
+    _POLICY_FLAGS = (
+        ("last", "--keep-last"),
+        ("hourly", "--keep-hourly"),
+        ("daily", "--keep-daily"),
+        ("weekly", "--keep-weekly"),
+        ("monthly", "--keep-monthly"),
+        ("yearly", "--keep-yearly"),
+        ("within", "--keep-within"),
+    )
+
+    def forget_policy(
+        self,
+        retention: dict,
+        prune: bool = True,
+        group_by: str = "paths,tags",
+        dry_run: bool = False,
+    ) -> subprocess.CompletedProcess:
+        """Apply a retention policy: ``forget --keep-* ... [--prune]``.
+
+        ``group_by`` defaults to ``paths,tags`` (not restic's ``host,paths``)
+        so each backup series — ``db:<alias>`` vs ``media`` — is retained
+        independently, and changing container hostnames cannot fragment the
+        groups.
+        """
+        argv = self._base_argv() + ["forget", "--group-by", group_by]
+        for key, flag in self._POLICY_FLAGS:
+            value = retention.get(key)
+            if value:
+                argv += [flag, str(value)]
+        if dry_run:
+            argv += ["--dry-run"]
+        if prune:
+            argv += ["--prune"]
+        return self._run(argv)
+
     def dump_popen(self, snapshot_id: str, path: str) -> subprocess.Popen:
         """Stream the raw content of ``path`` from a snapshot to stdout.
 
@@ -171,7 +234,8 @@ class Restic:
         pipes ``proc.stdout`` into a restore command and is responsible for
         waiting on the process; we do not wait.
         """
-        argv = [self.binary, "-r", self.repository, "dump", snapshot_id, path]
+        argv = [self.binary, "-r", self.repository, *self.global_args,
+                "dump", snapshot_id, path]
         return subprocess.Popen(argv, stdout=subprocess.PIPE, env=self._env())
 
     def unlock(self) -> subprocess.CompletedProcess:

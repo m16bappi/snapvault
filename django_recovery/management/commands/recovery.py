@@ -1,4 +1,4 @@
-"""``manage.py recovery {init,backup,restore,snapshots,remove}``.
+"""``manage.py recovery {init,backup,restore,snapshots,remove,prune}``.
 
 A single Django management command exposing every backup operation through
 argparse subparsers. Each subcommand is a thin wrapper over the shared
@@ -59,6 +59,20 @@ class Command(BaseCommand):
             help="Do not prompt for confirmation.",
         )
 
+        prune = subparsers.add_parser(
+            "prune", help="Apply the RETENTION policy (forget old snapshots + prune)."
+        )
+        prune.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Show what would be removed without removing anything.",
+        )
+        prune.add_argument(
+            "--noinput",
+            action="store_true",
+            help="Do not prompt for confirmation.",
+        )
+
     def handle(self, *args, **opts):
         subcommand = opts.get("subcommand")
         log = lambda message: self.stdout.write(message)  # noqa: E731
@@ -77,10 +91,12 @@ class Command(BaseCommand):
             self._restore(opts, log)
         elif subcommand == "remove":
             self._remove(opts, log)
+        elif subcommand == "prune":
+            self._prune(opts, log)
         else:  # pragma: no cover - argparse enforces required=True
             raise CommandError(
                 "No subcommand given. Use one of: "
-                "init, backup, restore, snapshots, remove."
+                "init, backup, restore, snapshots, remove, prune."
             )
 
     def _snapshots(self, log):
@@ -121,3 +137,26 @@ class Command(BaseCommand):
                 self.stderr.write("Aborted.")
                 raise CommandError("Remove aborted: not confirmed.")
         services.remove_snapshot(snapshot_id, log_callback=log)
+
+    def _prune(self, opts, log):
+        from django_recovery.conf import get_config
+
+        config = get_config()
+        if not config.retention:
+            raise CommandError(
+                "RECOVERY['RETENTION'] is not configured. Add a policy, e.g. "
+                "{'daily': 7, 'weekly': 4, 'monthly': 6}, then re-run."
+            )
+        dry_run = bool(opts.get("dry_run"))
+        if not dry_run and not opts.get("noinput"):
+            policy = ", ".join(
+                f"{k}={v}" for k, v in sorted(config.retention.items())
+            )
+            answer = input(
+                f"Apply retention policy ({policy}) and permanently remove "
+                f"snapshots outside it? Type 'yes' to continue: "
+            )
+            if answer != "yes":
+                self.stderr.write("Aborted.")
+                raise CommandError("Prune aborted: not confirmed.")
+        services.run_prune(config=config, dry_run=dry_run, log_callback=log)

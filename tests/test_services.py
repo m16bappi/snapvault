@@ -19,13 +19,14 @@ from django_recovery.conf import RecoveryConfig
 from django_recovery.restic import Snapshot
 
 
-def _config(*, databases=("default",), media=False, tags=("test",)):
+def _config(*, databases=("default",), media=False, tags=("test",), **extra):
     return RecoveryConfig(
         backend=LocalBackend(path="/repo", password="test-password"),
         databases=list(databases),
         media=media,
         tags=list(tags),
         binary="/usr/bin/restic",
+        **extra,
     )
 
 
@@ -75,6 +76,9 @@ def test_run_backup_calls_backup_command_with_tags_and_extra_env(
         stdin_filename="default.sql",
         tags=["db:default", "test"],
         extra_env={"PGPASSWORD": "secret"},
+        host=None,
+        skip_if_unchanged=False,
+        read_concurrency=None,
     )
     mock_restic.backup_paths.assert_not_called()
     assert summary == {"default": "ok"}
@@ -82,13 +86,33 @@ def test_run_backup_calls_backup_command_with_tags_and_extra_env(
 
 @override_settings(MEDIA_ROOT="/srv/media")
 def test_run_backup_with_media_also_backs_up_media(mock_restic, mock_get_connector):
-    summary = services.run_backup(config=_config(media=True))
+    summary = services.run_backup(
+        config=_config(media=True, media_exclude=["*.tmp"])
+    )
 
     mock_restic.backup_paths.assert_called_once_with(
         ["/srv/media"],
         tags=["media", "test"],
+        host=None,
+        skip_if_unchanged=False,
+        read_concurrency=None,
+        exclude=["*.tmp"],
     )
     assert summary == {"default": "ok", "media": "ok"}
+
+
+def test_run_backup_forwards_host_and_tuning(mock_restic, mock_get_connector):
+    services.run_backup(
+        config=_config(
+            host="web1",
+            skip_if_unchanged=True,
+            tuning={"read_concurrency": 4},
+        )
+    )
+    kwargs = mock_restic.backup_command.call_args.kwargs
+    assert kwargs["host"] == "web1"
+    assert kwargs["skip_if_unchanged"] is True
+    assert kwargs["read_concurrency"] == 4
 
 
 def test_run_backup_invokes_log_callback(mock_restic, mock_get_connector):
@@ -168,6 +192,28 @@ def test_run_restore_latest_resolves_newest_matching(mock_restic, monkeypatch):
     services.run_restore("default", "latest", config=_config())
 
     mock_restic.dump_popen.assert_called_once_with("new222", "default.sql")
+
+
+# --- run_prune ----------------------------------------------------------------
+
+def test_run_prune_applies_policy(mock_restic):
+    services.run_prune(config=_config(retention={"daily": 7, "weekly": 4}))
+    mock_restic.forget_policy.assert_called_once_with(
+        {"daily": 7, "weekly": 4}, prune=True, dry_run=False
+    )
+
+
+def test_run_prune_dry_run_disables_prune(mock_restic):
+    services.run_prune(config=_config(retention={"daily": 7}), dry_run=True)
+    mock_restic.forget_policy.assert_called_once_with(
+        {"daily": 7}, prune=False, dry_run=True
+    )
+
+
+def test_run_prune_without_retention_raises(mock_restic):
+    with pytest.raises(ValueError, match="RETENTION"):
+        services.run_prune(config=_config())
+    mock_restic.forget_policy.assert_not_called()
 
 
 # --- remove / list / init --------------------------------------------------

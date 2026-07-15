@@ -13,7 +13,7 @@ import os
 import subprocess
 from collections.abc import Callable
 
-from .conf import RecoveryConfig, get_config, resolve_binary
+from .conf import RecoveryConfig, build_global_args, get_config, resolve_binary
 from .connectors import get_connector
 from .restic import Restic, Snapshot
 
@@ -32,6 +32,7 @@ def _make_restic(config: RecoveryConfig | None = None) -> Restic:
         config.backend.repository,
         extra_env=config.backend.env(),
         binary=binary,
+        global_args=build_global_args(config),
     )
 
 
@@ -65,6 +66,8 @@ def run_backup(
     restic = _make_restic(config)
     databases = databases if databases is not None else config.databases
 
+    read_concurrency = config.tuning.get("read_concurrency")
+
     summary: dict[str, str] = {}
     for alias in databases:
         log(f"Backing up database '{alias}'...")
@@ -75,6 +78,9 @@ def run_backup(
             stdin_filename=conn.stdin_filename,
             tags=tags,
             extra_env=conn.extra_env(),
+            host=config.host,
+            skip_if_unchanged=config.skip_if_unchanged,
+            read_concurrency=read_concurrency,
         )
         summary[alias] = "ok"
         log(f"Database '{alias}' backed up.")
@@ -86,6 +92,10 @@ def run_backup(
         restic.backup_paths(
             [settings.MEDIA_ROOT],
             tags=["media", *config.tags],
+            host=config.host,
+            skip_if_unchanged=config.skip_if_unchanged,
+            read_concurrency=read_concurrency,
+            exclude=config.media_exclude,
         )
         summary["media"] = "ok"
         log("Media backed up.")
@@ -184,6 +194,33 @@ def remove_snapshot(
     log(f"Removing snapshot {snapshot_id}...")
     restic.forget_snapshot(snapshot_id, prune=True)
     log(f"Snapshot {snapshot_id} removed.")
+    return None
+
+
+def run_prune(
+    config: RecoveryConfig | None = None,
+    dry_run: bool = False,
+    log_callback: LogCallback | None = None,
+) -> None:
+    """Apply ``RECOVERY['RETENTION']`` with ``forget --keep-* --prune``.
+
+    Raises:
+        ValueError: when no retention policy is configured — pruning without
+            a policy would be a no-op at best and surprising at worst.
+    """
+    log = log_callback or _noop
+    config = config or get_config()
+    if not config.retention:
+        raise ValueError(
+            "RECOVERY['RETENTION'] is not configured; nothing to prune. "
+            "Add a retention policy, e.g. {'daily': 7, 'weekly': 4}."
+        )
+    restic = _make_restic(config)
+    policy = ", ".join(f"{k}={v}" for k, v in sorted(config.retention.items()))
+    verb = "Previewing" if dry_run else "Applying"
+    log(f"{verb} retention policy ({policy})...")
+    restic.forget_policy(config.retention, prune=not dry_run, dry_run=dry_run)
+    log("Retention preview complete." if dry_run else "Retention policy applied.")
     return None
 
 

@@ -129,6 +129,12 @@ configured through the UI.
 | `MEDIA`     | `bool`      | `False`       | When `True`, also back up `settings.MEDIA_ROOT` as a snapshot tagged `media`. |
 | `TAGS`      | `list[str]` | `[]`          | Extra tags appended to every snapshot (in addition to `db:<alias>` / `media`). |
 | `BINARY`    | `str`       | `None`        | Explicit path to the restic binary. Overrides `PATH` discovery. |
+| `RETENTION` | `dict`      | `{}`          | Retention policy for `recovery prune`, e.g. `{"daily": 7, "weekly": 4, "monthly": 6}`. Keys: `last`, `hourly`, `daily`, `weekly`, `monthly`, `yearly`, `within`. |
+| `TUNING`    | `dict`      | `{}`          | restic performance flags: `compression`, `pack_size`, `read_concurrency`, `limit_upload`, `limit_download`, `retry_lock`, `cache_dir`, `no_cache`, `connections`. |
+| `HOST`      | `str`       | `None`        | Stable snapshot hostname (`--host`) — set it in Docker/Kubernetes. |
+| `SKIP_IF_UNCHANGED` | `bool` | `False`   | Skip snapshot creation when identical to the previous one (restic ≥ 0.17). |
+| `MEDIA_EXCLUDE` | `list[str]` | `[]`      | `--exclude` patterns for the media snapshot. |
+| `EXTRA_ARGS` | `list[str]` | `[]`         | Raw arguments appended to every restic invocation (escape hatch). |
 
 Every backend accepts `password` (the repository password as a string) **or**
 `password_file` (a path, mapped to restic's `RESTIC_PASSWORD_FILE`) — exactly one is
@@ -308,6 +314,20 @@ type `yes` to proceed. Pass `--noinput` to skip:
 python manage.py recovery remove 1a2b3c4d --noinput
 ```
 
+### `recovery prune`
+
+Apply the `RECOVERY["RETENTION"]` policy: forget snapshots outside it and reclaim space
+(`restic forget --keep-* --prune`, grouped by `paths,tags` so each database/media series
+is retained independently).
+
+```bash
+python manage.py recovery prune --dry-run   # preview, removes nothing
+python manage.py recovery prune             # prompts for confirmation
+python manage.py recovery prune --noinput   # for cron
+```
+
+Refuses to run when `RETENTION` is not configured.
+
 ---
 
 ## Web UI
@@ -415,10 +435,11 @@ no `recovery unlock` subcommand in v1.)
 
 ## Out of scope in v1
 
-- **Retention / prune / check policies and UI** — snapshots are removed individually;
-  policy-based cleanup comes later.
-- **Scheduling** — recovery does not run itself. Drive `recovery backup` from cron or a
-  Celery beat task, e.g. a nightly `0 2 * * *  cd /app && python manage.py recovery backup`.
+- **Repository verification (`restic check`) command and retention UI** — retention runs
+  via `recovery prune`; a `check` subcommand and dashboard controls come later.
+- **Scheduling** — recovery does not run itself. Drive it from cron or Celery beat, e.g.
+  nightly `0 2 * * *  cd /app && python manage.py recovery backup` plus weekly
+  `0 4 * * 0  cd /app && python manage.py recovery prune --noinput`.
 - **Per-database separate repositories** — one repository per project in v1.
 - Any configuration from the UI — `settings.py` only.
 

@@ -38,8 +38,9 @@ belongs. See [Installation](installation.md).
 
 ## Out of scope in v1
 
-- **Retention / prune / check policies and UI** — snapshots are removed individually;
-  policy-based cleanup comes later.
-- **Scheduling** — drive `recovery backup` from cron or Celery beat.
+- **Repository verification (`restic check`) command and retention UI** — retention runs
+  via [`recovery prune`](commands.md#recovery-prune); a `check` subcommand and dashboard
+  controls come later.
+- **Scheduling** — drive `recovery backup` / `recovery prune` from cron or Celery beat.
 - **Per-database separate repositories.**
 - Any configuration from the UI — `settings.py` only.

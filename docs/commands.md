@@ -71,10 +71,26 @@ Pass `--noinput` to skip:
 python manage.py recovery remove 1a2b3c4d --noinput
 ```
 
+## `recovery prune`
+
+Apply the [`RETENTION` policy](configuration.md#retention-policy): forget snapshots
+falling outside it and reclaim their space (`restic forget --keep-* --prune`).
+
+```bash
+python manage.py recovery prune --dry-run   # preview only, removes nothing, no prompt
+python manage.py recovery prune             # prompts for confirmation
+python manage.py recovery prune --noinput   # for cron
+```
+
+Without `RECOVERY["RETENTION"]` configured the command refuses to run. The interactive
+prompt shows the policy and requires typing `yes`.
+
 ## Scheduling
 
-django-recovery does not run itself. Drive `recovery backup` from cron or Celery beat:
+django-recovery does not run itself. Drive `recovery backup` (and a periodic
+`recovery prune`) from cron or Celery beat:
 
 ```cron
 0 2 * * *  cd /app && python manage.py recovery backup
+0 4 * * 0  cd /app && python manage.py recovery prune --noinput
 ```

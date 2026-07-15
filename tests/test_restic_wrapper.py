@@ -95,6 +95,67 @@ def test_init_argv(mock_run):
     assert argv == ["restic", "--json", "-r", "/repo", "init"]
 
 
+def test_global_args_injected_after_repo(mock_run):
+    r = Restic(repository="/repo", binary="restic",
+               global_args=["--compression", "max", "--no-cache"])
+    r.init()
+    argv = mock_run.calls[0].args[0]
+    assert argv == ["restic", "--json", "-r", "/repo",
+                    "--compression", "max", "--no-cache", "init"]
+
+
+def test_backup_flags_host_skip_read_concurrency(mock_run):
+    r = Restic(repository="/repo", binary="restic")
+    r.backup_command(
+        ["sqlite3", "db", ".dump"],
+        stdin_filename="default.sql",
+        tags=["db:default"],
+        host="web1",
+        skip_if_unchanged=True,
+        read_concurrency=4,
+    )
+    argv = mock_run.calls[0].args[0]
+    assert argv == [
+        "restic", "--json", "-r", "/repo", "backup",
+        "--stdin-filename", "default.sql", "--tag", "db:default",
+        "--host", "web1", "--skip-if-unchanged", "--read-concurrency", "4",
+        "--stdin-from-command", "--", "sqlite3", "db", ".dump",
+    ]
+
+
+def test_backup_paths_exclude_patterns(mock_run):
+    r = Restic(repository="/repo", binary="restic")
+    r.backup_paths(["/media"], tags=["media"], exclude=["*.tmp", "cache/*"])
+    argv = mock_run.calls[0].args[0]
+    assert argv == ["restic", "--json", "-r", "/repo", "backup", "/media",
+                    "--tag", "media", "--exclude", "*.tmp",
+                    "--exclude", "cache/*"]
+
+
+def test_forget_policy_full_argv(mock_run):
+    r = Restic(repository="/repo", binary="restic")
+    r.forget_policy(
+        {"daily": 7, "weekly": 4, "last": 5, "within": "7d"},
+    )
+    argv = mock_run.calls[0].args[0]
+    assert argv == [
+        "restic", "--json", "-r", "/repo", "forget",
+        "--group-by", "paths,tags",
+        "--keep-last", "5", "--keep-daily", "7", "--keep-weekly", "4",
+        "--keep-within", "7d", "--prune",
+    ]
+
+
+def test_forget_policy_dry_run_no_prune(mock_run):
+    r = Restic(repository="/repo", binary="restic")
+    r.forget_policy({"daily": 7}, prune=False, dry_run=True)
+    argv = mock_run.calls[0].args[0]
+    assert argv == [
+        "restic", "--json", "-r", "/repo", "forget",
+        "--group-by", "paths,tags", "--keep-daily", "7", "--dry-run",
+    ]
+
+
 def test_forget_snapshot_argv(mock_run):
     r = Restic(repository="/repo", binary="restic")
     r.forget_snapshot("abc123")

@@ -20,9 +20,16 @@ from unittest.mock import MagicMock
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.test import override_settings
 
 from django_recovery import services
 from django_recovery.restic import Snapshot
+
+RECOVERY_WITH_RETENTION = {
+    "BACKEND": "django_recovery.backends.LocalBackend",
+    "OPTIONS": {"path": "/tmp/test-repo", "password": "test-password"},
+    "RETENTION": {"daily": 7, "weekly": 4},
+}
 
 
 def test_backup_calls_run_backup_with_databases(monkeypatch):
@@ -134,3 +141,52 @@ def test_init_calls_run_init(monkeypatch):
     call_command("recovery", "init")
 
     fake.assert_called_once()
+
+
+def test_prune_without_retention_raises(monkeypatch):
+    fake = MagicMock()
+    monkeypatch.setattr(services, "run_prune", fake)
+
+    with pytest.raises(CommandError, match="RETENTION"):
+        call_command("recovery", "prune", noinput=True)
+
+    fake.assert_not_called()
+
+
+@override_settings(RECOVERY=RECOVERY_WITH_RETENTION)
+def test_prune_noinput_calls_run_prune(monkeypatch):
+    fake = MagicMock()
+    monkeypatch.setattr(services, "run_prune", fake)
+
+    call_command("recovery", "prune", noinput=True)
+
+    fake.assert_called_once()
+    assert fake.call_args.kwargs["dry_run"] is False
+
+
+@override_settings(RECOVERY=RECOVERY_WITH_RETENTION)
+def test_prune_declined_confirmation_aborts(monkeypatch):
+    fake = MagicMock()
+    monkeypatch.setattr(services, "run_prune", fake)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "no")
+
+    with pytest.raises(CommandError):
+        call_command("recovery", "prune")
+
+    fake.assert_not_called()
+
+
+@override_settings(RECOVERY=RECOVERY_WITH_RETENTION)
+def test_prune_dry_run_skips_prompt(monkeypatch):
+    fake = MagicMock()
+    monkeypatch.setattr(services, "run_prune", fake)
+
+    def explode(prompt=""):  # pragma: no cover - must not be called
+        raise AssertionError("dry-run must not prompt")
+
+    monkeypatch.setattr("builtins.input", explode)
+
+    call_command("recovery", "prune", dry_run=True)
+
+    fake.assert_called_once()
+    assert fake.call_args.kwargs["dry_run"] is True
