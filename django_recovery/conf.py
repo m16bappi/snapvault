@@ -226,9 +226,8 @@ def resolve_binary(config: RecoveryConfig) -> str:
     if config.binary:
         return config.binary
 
-    found = shutil.which("restic")
-    if found:
-        return found
+    if binary := shutil.which("restic"):
+        return binary
 
     raise ImproperlyConfigured(
         "Could not locate a restic binary. Install restic and place it on your "
