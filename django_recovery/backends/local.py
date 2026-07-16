@@ -12,7 +12,6 @@ class LocalBackend(BaseBackend):
         return {"path": None}
 
     def _validate(self) -> None:
-        super()._validate()
         self._require("path")
 
     @property

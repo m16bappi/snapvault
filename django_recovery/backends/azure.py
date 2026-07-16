@@ -23,7 +23,6 @@ class AzureBackend(BaseBackend):
         }
 
     def _validate(self) -> None:
-        super()._validate()
         self._require("container", "account_name")
         if bool(self.account_key) == bool(self.sas_token):
             raise ImproperlyConfigured(

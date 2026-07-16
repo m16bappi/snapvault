@@ -24,7 +24,6 @@ class GenericBackend(BaseBackend):
         }
 
     def _validate(self) -> None:
-        super()._validate()
         self._require("repository")
 
     def env(self) -> dict[str, str]:

@@ -26,7 +26,6 @@ class S3Backend(BaseBackend):
         }
 
     def _validate(self) -> None:
-        super()._validate()
         self._require("bucket_name", "access_key", "secret_key")
 
     @property

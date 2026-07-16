@@ -23,7 +23,6 @@ class SFTPBackend(BaseBackend):
         }
 
     def _validate(self) -> None:
-        super()._validate()
         self._require("host", "path")
 
     @property
