@@ -115,6 +115,20 @@ class Restic:
     def init(self) -> subprocess.CompletedProcess:
         return self._run(self._base_argv() + ["init"])
 
+    def is_initialized(self) -> bool:
+        """Whether the repository already exists.
+
+        Uses ``cat config`` — the canonical restic existence probe. Any
+        failure (missing repo, unreachable backend, wrong password) reports
+        ``False``; a subsequent ``init`` will surface the real error if the
+        repository does exist but cannot be opened.
+        """
+        try:
+            self._run(self._base_argv() + ["cat", "config"])
+        except ResticError:
+            return False
+        return True
+
     def _backup_flags(
         self,
         tags: list[str] | None,

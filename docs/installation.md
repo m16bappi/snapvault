@@ -48,7 +48,7 @@ You need the command-line client for each database engine you back up, on `PATH`
 |---|---|
 | PostgreSQL / PostGIS | `pg_dump`, `psql` |
 | MySQL | `mysqldump`, `mysql` |
-| SQLite | `sqlite3` |
+| SQLite | none needed |
 
 See [Supported databases](databases.md) for details.
 

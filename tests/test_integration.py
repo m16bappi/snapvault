@@ -2,16 +2,18 @@
 
 This is the release gate for Phase 2. It exercises the full backup/restore
 path against a real restic repository and a real on-disk SQLite database,
-using the actual ``restic`` and ``sqlite3`` executables (no mocking).
+using the actual ``restic`` executable (no mocking). SQLite dump/restore
+runs through the connector's Python scripts — no ``sqlite3`` CLI involved.
 
 It deliberately does NOT use Django's test-runner database (an in-memory
-``:memory:`` DB can't be dumped by the ``sqlite3`` CLI). Instead it builds a
-standalone sqlite file, points ``settings.DATABASES['default']`` at it via
-``override_settings``, and passes an explicit :class:`RecoveryConfig` to the
-service layer. No ORM access, so ``django_db`` is not needed.
+``:memory:`` DB is invisible to the connector's separate dump process).
+Instead it builds a standalone sqlite file, points
+``settings.DATABASES['default']`` at it via ``override_settings``, and
+passes an explicit :class:`RecoveryConfig` to the service layer. No ORM
+access, so ``django_db`` is not needed.
 
-Skipped when the restic binary or the ``sqlite3`` CLI is unavailable; run
-explicitly with ``pytest -m integration``.
+Skipped when the restic binary is unavailable; run explicitly with
+``pytest -m integration``.
 """
 
 from __future__ import annotations
@@ -33,12 +35,10 @@ def _restic_binary() -> str | None:
 
 
 RESTIC_BIN = _restic_binary()
-SQLITE_CLI = shutil.which("sqlite3")
 
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(RESTIC_BIN is None, reason="restic binary not available"),
-    pytest.mark.skipif(SQLITE_CLI is None, reason="sqlite3 CLI not available"),
 ]
 
 
@@ -102,13 +102,7 @@ def test_sqlite_backup_restore_roundtrip(tmp_path, monkeypatch):
         conn.close()
         assert _note_count(str(db_path)) == 0
 
-        # Delete the file entirely so the restored .dump recreates schema
-        # and data cleanly (restoring onto an existing table would raise
-        # "table note already exists").
-        db_path.unlink()
-        assert not db_path.exists()
-
-        # -- restore ------------------------------------------------------
+        # -- restore over the EXISTING, mutated database file -------------
         services.run_restore("default", "latest", config=config)
 
         assert db_path.exists()

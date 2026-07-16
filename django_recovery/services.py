@@ -40,9 +40,17 @@ def run_init(
     config: RecoveryConfig | None = None,
     log_callback: LogCallback | None = None,
 ) -> None:
-    """Initialize the restic repository."""
+    """Initialize the restic repository.
+
+    Idempotent: when the repository already exists the call logs and
+    returns instead of failing (``restic init`` errors on an existing
+    repository).
+    """
     log = log_callback or _noop
     restic = _make_restic(config)
+    if restic.is_initialized():
+        log("Repository already initialized; skipping.")
+        return None
     log("Initializing repository...")
     restic.init()
     log("Repository initialized.")

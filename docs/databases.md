@@ -4,7 +4,7 @@
 |---|---|---|
 | `postgresql`, `postgis` | `pg_dump` / `psql` | `PGPASSWORD` |
 | `mysql` | `mysqldump` / `mysql` | `MYSQL_PWD` |
-| `sqlite3` | `sqlite3` | — (file only) |
+| `sqlite3` | none — raw file copy via Python | — (file only) |
 
 Connection host/port/user/name are read from each alias's `DATABASES` entry; host and
 port are omitted from the command line when empty (socket connections). Any other engine

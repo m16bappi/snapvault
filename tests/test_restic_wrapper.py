@@ -95,6 +95,20 @@ def test_init_argv(mock_run):
     assert argv == ["restic", "--json", "-r", "/repo", "init"]
 
 
+def test_is_initialized_argv_and_true_on_success(mock_run):
+    r = Restic(repository="/repo", binary="restic")
+    assert r.is_initialized() is True
+    argv = mock_run.calls[0].args[0]
+    assert argv == ["restic", "--json", "-r", "/repo", "cat", "config"]
+
+
+def test_is_initialized_false_on_restic_error(mock_run):
+    mock_run.returncode = 1
+    mock_run.stderr = "Fatal: unable to open config file"
+    r = Restic(repository="/repo", binary="restic")
+    assert r.is_initialized() is False
+
+
 def test_global_args_injected_after_repo(mock_run):
     r = Restic(repository="/repo", binary="restic",
                global_args=["--compression", "max", "--no-cache"])

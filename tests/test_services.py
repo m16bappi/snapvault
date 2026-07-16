@@ -230,5 +230,14 @@ def test_list_snapshots_returns_restic_snapshots(mock_restic):
 
 
 def test_run_init_calls_restic_init(mock_restic):
+    mock_restic.is_initialized.return_value = False
     services.run_init(config=_config())
     mock_restic.init.assert_called_once_with()
+
+
+def test_run_init_skips_when_already_initialized(mock_restic):
+    mock_restic.is_initialized.return_value = True
+    messages = []
+    services.run_init(config=_config(), log_callback=messages.append)
+    mock_restic.init.assert_not_called()
+    assert messages == ["Repository already initialized; skipping."]

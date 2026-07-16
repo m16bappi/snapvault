@@ -3,7 +3,7 @@
 ## Backup
 
 For each configured alias, django-recovery asks the engine connector for a dump command
-(`pg_dump …`, `mysqldump …`, `sqlite3 … .dump`) and hands it to restic:
+(`pg_dump …`, `mysqldump …`; SQLite streams its raw file) and hands it to restic:
 
 ```
 restic --json -r <repo> backup --stdin-filename <alias>.sql \

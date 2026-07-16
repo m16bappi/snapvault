@@ -6,10 +6,15 @@ settings dict. Connectors are constructed directly where possible; the
 :func:`get_connector` factory is exercised via ``override_settings``.
 """
 
+import sqlite3
+import subprocess
+import sys
+
 import pytest
 from django.test import override_settings
 
 from django_recovery.connectors import MySQL, Postgres, SQLite, get_connector
+from django_recovery.connectors import sqlite as sqlite_mod
 
 # --- Postgres --------------------------------------------------------------
 
@@ -117,14 +122,18 @@ def test_mysql_omits_host_and_port_when_empty():
 
 # --- SQLite ----------------------------------------------------------------
 
-def test_sqlite_dump_command():
+def test_sqlite_dump_command_runs_python_backup_script():
     c = SQLite("default", {"NAME": "/path/db.sqlite3"})
-    assert c.dump_command() == ["sqlite3", "/path/db.sqlite3", ".dump"]
+    assert c.dump_command() == [
+        sys.executable, "-c", sqlite_mod._DUMP_SCRIPT, "/path/db.sqlite3",
+    ]
 
 
-def test_sqlite_restore_command():
+def test_sqlite_restore_command_runs_python_backup_script():
     c = SQLite("default", {"NAME": "/path/db.sqlite3"})
-    assert c.restore_command() == ["sqlite3", "/path/db.sqlite3"]
+    assert c.restore_command() == [
+        sys.executable, "-c", sqlite_mod._RESTORE_SCRIPT, "/path/db.sqlite3",
+    ]
 
 
 def test_sqlite_extra_env_empty():
@@ -132,11 +141,56 @@ def test_sqlite_extra_env_empty():
     assert c.extra_env() == {}
 
 
+def test_sqlite_dump_restore_roundtrip(tmp_path):
+    """Run the real dump/restore scripts: raw file out, overwrite-restore in."""
+    src_db = tmp_path / "src.sqlite3"
+    conn = sqlite3.connect(str(src_db))
+    conn.execute("CREATE TABLE note(id INTEGER PRIMARY KEY, body TEXT)")
+    conn.execute("INSERT INTO note(body) VALUES ('hello-file')")
+    conn.commit()
+    conn.close()
+
+    dumped = subprocess.run(
+        SQLite("default", {"NAME": str(src_db)}).dump_command(),
+        capture_output=True, check=True,
+    ).stdout
+    # The stream is the raw database file, not SQL text.
+    assert dumped.startswith(b"SQLite format 3\x00")
+
+    # Restore over an EXISTING database with different content.
+    dst_db = tmp_path / "dst.sqlite3"
+    conn = sqlite3.connect(str(dst_db))
+    conn.execute("CREATE TABLE other(x INTEGER)")
+    conn.commit()
+    conn.close()
+
+    subprocess.run(
+        SQLite("default", {"NAME": str(dst_db)}).restore_command(),
+        input=dumped, check=True,
+    )
+    conn = sqlite3.connect(str(dst_db))
+    try:
+        rows = [r[0] for r in conn.execute("SELECT body FROM note")]
+    finally:
+        conn.close()
+    assert rows == ["hello-file"]
+
+
+def test_sqlite_dump_fails_on_missing_database(tmp_path):
+    missing = tmp_path / "nope.sqlite3"
+    proc = subprocess.run(
+        SQLite("default", {"NAME": str(missing)}).dump_command(),
+        capture_output=True, text=True,
+    )
+    assert proc.returncode != 0
+    assert "sqlite database not found" in proc.stderr
+
+
 # --- stdin_filename --------------------------------------------------------
 
-def test_stdin_filename():
+def test_stdin_filename_sqlite_is_raw_file():
     c = SQLite("default", {"NAME": "/path/db.sqlite3"})
-    assert c.stdin_filename == "default.sql"
+    assert c.stdin_filename == "default.sqlite3"
 
 
 def test_stdin_filename_uses_alias():
