@@ -40,19 +40,7 @@ Verify:
 restic version
 ```
 
-## 3. Install database CLI clients
-
-You need the command-line client for each database engine you back up, on `PATH`:
-
-| Engine | Clients |
-|---|---|
-| PostgreSQL / PostGIS | `pg_dump`, `psql` |
-| MySQL | `mysqldump`, `mysql` |
-| SQLite | none needed |
-
-See [Supported databases](databases.md) for details.
-
-## 4. Add the app
+## 3. Add the app
 
 ```python
 INSTALLED_APPS = [

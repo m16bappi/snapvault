@@ -42,6 +42,7 @@ nav:
   - Usage:
       - Management commands: commands.md
       - Web dashboard: web-ui.md
+      - Scheduling backups: scheduling.md
   - Reference:
       - How it works: how-it-works.md
       - Supported databases: databases.md
