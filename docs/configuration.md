@@ -1,7 +1,7 @@
 # Settings reference
 
 All configuration lives in a single `RECOVERY` dict in `settings.py` — the same shape as
-Django's `STORAGES` setting. Nothing is configured through the UI.
+Django's `STORAGES` setting.
 
 ```python
 RECOVERY = {

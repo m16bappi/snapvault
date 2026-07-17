@@ -41,7 +41,6 @@ nav:
       - Storage backends: backends.md
   - Usage:
       - Management commands: commands.md
-      - Web dashboard: web-ui.md
       - Scheduling backups: scheduling.md
   - Reference:
       - How it works: how-it-works.md

@@ -1,8 +1,11 @@
 # Why django-recovery
 
+!!! warning "Beta"
+    django-recovery is 🚧 under active development. APIs and settings may change before 1.0.
+
 **django-recovery** turns your Django `DATABASES` (and optionally your media directory)
 into [restic](https://restic.net/) snapshots: always encrypted, deduplicated across
-backups, and restorable through a management command or a superuser-only web dashboard.
+backups, and restorable through a management command.
 
 You configure it like any Django storage — a backend class plus options in
 `settings.py` — and get production-grade backups without writing a single shell script.
@@ -24,7 +27,7 @@ pushed to a bucket by cron. That script quietly accumulates failure modes:
 
 django-recovery delegates the hard parts to restic, a mature open-source backup engine,
 and focuses on the Django side (dump commands built from `settings.DATABASES`,
-management commands, the dashboard).
+management commands).
 
 **Encryption is always on.** Every snapshot is encrypted client-side (AES-256 in
 counter mode, authenticated with Poly1305-AES) before a single byte leaves your server —
@@ -54,7 +57,6 @@ locked inside this library.
 | Storage cost | Full copy every run | Full copy every run | Delta only (dedup + zstd) |
 | Retention | Another script | Keep-last-N count | Policy: `daily/weekly/monthly/yearly/within`, per series |
 | Restore safety | Hope | Manual care | Tag guard refuses the wrong database; typed confirmation |
-| Web UI | — | — | Superuser dashboard, live job logs |
 
 django-dbbackup is a solid, popular package — if plain dumps in your existing
 `django-storages` bucket are all you need, it may be enough. django-recovery exists for
@@ -102,8 +104,6 @@ restic alone doesn't know what a Django project is. django-recovery contributes:
 - **One management command** — `recovery init|backup|restore|snapshots|remove`, with
   confirmation prompts and a tag guard that refuses to restore a snapshot into the
   wrong database.
-- **A superuser-only dashboard** — snapshots, one-click backup, guarded restore/remove,
-  live job logs.
 
 !!! warning "One thing restic cannot recover"
     If you lose the repository password, you lose the backups. There is no reset and no

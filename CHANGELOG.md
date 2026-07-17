@@ -4,6 +4,12 @@ All notable changes to django-recovery are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0b1] - 2026-07-17
+
+### Changed
+
+- Project status is beta / under active development.
+
 ## [0.2.0] - 2026-07-16
 
 ### Changed
@@ -73,7 +79,6 @@ All notable changes to django-recovery are documented here. The format follows
   generic restic URL escape hatch.
 - `manage.py recovery` command: `init`, `backup`, `restore`, `snapshots`,
   `remove`.
-- Staff web UI with background jobs and live logs.
 
 [0.2.0]: https://github.com/m16bappi/django-recovery/releases/tag/v0.2.0
 [0.1.2]: https://github.com/m16bappi/django-recovery/releases/tag/v0.1.2

@@ -49,10 +49,4 @@ INSTALLED_APPS = [
 ]
 ```
 
-Run migrations (django-recovery stores a `BackupJob` row per operation for the web UI):
-
-```bash
-python manage.py migrate
-```
-
 Continue with the [Quickstart](quickstart.md).

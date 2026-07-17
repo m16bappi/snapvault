@@ -13,7 +13,7 @@ Yes — set `"MEDIA": True` and django-recovery snapshots `settings.MEDIA_ROOT` 
 
 ## The repository is locked
 
-A killed job can leave a restic lock behind. Clear it with restic directly, using the
+A killed backup can leave a restic lock behind. Clear it with restic directly, using the
 same repository and password:
 
 ```bash
@@ -38,9 +38,7 @@ belongs. See [Installation](installation.md).
 
 ## Out of scope in v1
 
-- **Repository verification (`restic check`) command and retention UI** — retention runs
-  via [`recovery prune`](commands.md#recovery-prune); a `check` subcommand and dashboard
-  controls come later.
+- **Repository verification (`restic check`) command** — retention runs
+  via [`recovery prune`](commands.md#recovery-prune); a `check` subcommand comes later.
 - **Scheduling** — drive `recovery backup` / `recovery prune` from cron or Celery beat.
 - **Per-database separate repositories.**
-- Any configuration from the UI — `settings.py` only.

@@ -1,10 +1,9 @@
 """Service layer orchestrating restic + connectors.
 
-These functions are the single shared entry point for both the management
-commands and the web UI. Each accepts an optional ``log_callback`` used to
-report short, human-readable progress strings (the UI job runner feeds a
-model-append callback; commands print). No password material is ever passed
-to the callback.
+These functions are the single shared entry point for the management
+commands. Each accepts an optional ``log_callback`` used to report short,
+human-readable progress strings (commands print). No password material is
+ever passed to the callback.
 """
 
 from __future__ import annotations
